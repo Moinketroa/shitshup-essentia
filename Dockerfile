@@ -5,13 +5,21 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install tensorflow-aarch64 --no-cache-dir -f https://tf.kmtea.eu/whl/stable.html
-RUN pip3 install tensorflow --no-cache-dir -f https://tf.kmtea.eu/whl/stable.html
+RUN pip3 install flask
+
+RUN pip3 install --no-cache-dir tensorflow
 
 RUN pip3 install --no-cache-dir essentia
 RUN pip3 install --no-cache-dir essentia-tensorflow
 
+RUN mkdir temp
+RUN mkdir upload
+
+RUN mkdir model
+#download models for tensorflow opex
 
 #ENV PYTHONPATH /usr/local/lib/python3/dist-packages
 
 WORKDIR /essentia
+
+EXPOSE 5000
