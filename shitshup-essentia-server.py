@@ -105,15 +105,19 @@ def music_data_standard(file_path):
 
 
 
-@app.route('/musicData', methods=['POST'])
-def post_music_data():
+@app.route('/musicData/<userId>', methods=['POST'])
+def post_music_data(userId):
     try:
         uploaded_file = request.files['file']
 
         if uploaded_file.filename != '':
             # Save the uploaded file to a location
             encoded_file_name = uploaded_file.filename
-            upload_directory = "/upload/"
+            upload_directory = "/upload/" + userId
+
+            if not os.path.exists(upload_directory):
+                os.mkdir(upload_directory)
+
             file_path = os.path.join(upload_directory, encoded_file_name)
             uploaded_file.save(file_path)
 
@@ -131,4 +135,4 @@ def post_music_data():
         return jsonify({'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, threaded=True)

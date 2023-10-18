@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:nightly-gpu
+FROM tensorflow/tensorflow:latest-gpu
 
 RUN apt-get update \
     && apt-get -y upgrade \
@@ -30,6 +30,7 @@ RUN mkdir model
 #ENV PYTHONPATH /usr/local/lib/python3/dist-packages
 
 ENV LD_LIBRARY_PATH=/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+ENV CUDA_CACHE_MAXSIZE=2147483648
 
 WORKDIR /essentia
 
