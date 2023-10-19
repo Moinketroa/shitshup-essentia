@@ -1,8 +1,11 @@
-from flask import Flask, request, json, jsonify
-from essentia.standard import MusicExtractor, YamlOutput, MonoLoader, TensorflowPredictEffnetDiscogs, TensorflowPredictVGGish, TensorflowPredict2D
+from flask import Flask, request, json, jsonify, send_file
+from essentia.standard import MusicExtractor, YamlOutput, AudioLoader, MonoLoader, TensorflowPredictEffnetDiscogs, TensorflowPredictVGGish, TensorflowPredict2D, TensorflowPredict, AudioWriter
+from essentia import Pool
+import numpy as np
 import tempfile
 import os
-import numpy as np
+import zipfile
+import shutil
 
 app = Flask(__name__)
 
@@ -41,6 +44,20 @@ relaxed_metadata_path = 'models/mood_relaxed-audioset-vggish-1.json'
 
 sad_model_path = 'models/mood_sad-audioset-vggish-1.pb'
 sad_metadata_path = 'models/mood_sad-audioset-vggish-1.json'
+
+spleeter_2s_model = "models/spleeter-2s-3.pb"
+spleeter_4s_model = "models/spleeter-4s-3.pb"
+spleeter_5s_model = "models/spleeter-5s-3.pb"
+
+output_directory = "/temp"
+directory_2s = "2s"
+directory_4s = "4s"
+
+vocals_file_name = "vocals.wav"
+accompaniment_file_name = "accompaniment.wav"
+drums_file_name = "drums.wav"
+bass_file_name = "bass.wav"
+other_file_name = "other.wav"
 
 def predict_music_data(audio_signal, model_path, metadata_path, graph_node_name, embedding_model, data, prediction_category):
     embeddings = embedding_model(audio_signal)
@@ -82,6 +99,97 @@ def music_data_predictions(file_path):
     predict_music_data_vggish_extractor(audio_signal, sad_model_path, sad_metadata_path, model_softmax_graph_node_name, predictions_data, 'sad')
 
     return predictions_data
+
+    
+def create_dir(dir_name):
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+
+def init_spleeter_pool_input(file_name):
+    audio, sr, _, _, _, _ = AudioLoader(filename=file_name)()
+
+    pool = Pool()
+    pool.set("waveform", audio[..., np.newaxis, np.newaxis])
+
+    return pool
+
+def spleet_audio_2s(file_name):
+    model = TensorflowPredict(
+        graphFilename=spleeter_2s_model,
+        inputs=["waveform"],
+        outputs=["waveform_vocals", "waveform_accompaniment"]
+    )
+
+    return model(init_spleeter_pool_input(file_name))
+
+def spleet_audio_4s(file_name):
+    model = TensorflowPredict(
+        graphFilename=spleeter_4s_model,
+        inputs=["waveform"],
+        outputs=["waveform_vocals", "waveform_drums", "waveform_bass", "waveform_other"]
+    )
+
+    return model(init_spleeter_pool_input(file_name))
+
+def predict_spleeter(user_id, file_path, file_name):
+    out_pool_2s = spleet_audio_2s(file_path)
+    out_pool_4s = spleet_audio_4s(file_path)
+
+    vocals_2s = out_pool_2s["waveform_vocals"].squeeze()
+    accompaniment_2s = out_pool_2s["waveform_accompaniment"].squeeze()
+
+    vocals_4s = out_pool_4s["waveform_vocals"].squeeze()
+    drums_4s = out_pool_4s["waveform_drums"].squeeze()
+    bass_4s = out_pool_4s["waveform_bass"].squeeze()
+    other_4s = out_pool_4s["waveform_other"].squeeze()
+
+    music_name, extension = os.path.splitext(file_name)
+
+    base_directory = os.path.join(output_directory, user_id, music_name)
+    base_2s_directory = os.path.join(base_directory, directory_2s)
+    base_4s_directory = os.path.join(base_directory, directory_4s)
+    
+    create_dir(base_2s_directory)
+    create_dir(base_4s_directory)
+
+    vocals_2s_file_name = os.path.join(base_2s_directory, vocals_file_name)
+    accompaniment_2s_file_name = os.path.join(base_2s_directory, accompaniment_file_name)
+
+    vocals_4s_file_name = os.path.join(base_4s_directory, vocals_file_name)
+    drums_4s_file_name = os.path.join(base_4s_directory, drums_file_name)
+    bass_4s_file_name = os.path.join(base_4s_directory, bass_file_name)
+    other_4s_file_name = os.path.join(base_4s_directory, other_file_name)
+
+    AudioWriter(filename=vocals_2s_file_name)(vocals_2s)
+    AudioWriter(filename=accompaniment_2s_file_name)(accompaniment_2s)
+
+    AudioWriter(filename=vocals_4s_file_name)(vocals_4s)
+    AudioWriter(filename=drums_4s_file_name)(drums_4s)
+    AudioWriter(filename=bass_4s_file_name)(bass_4s)
+    AudioWriter(filename=other_4s_file_name)(other_4s)
+
+    files_to_zip = {
+        vocals_2s_file_name: os.path.join(directory_2s, vocals_file_name),
+        accompaniment_2s_file_name: os.path.join(directory_2s, accompaniment_file_name),
+
+        vocals_4s_file_name: os.path.join(directory_4s, vocals_file_name),
+        drums_4s_file_name: os.path.join(directory_4s, drums_file_name),
+        bass_4s_file_name: os.path.join(directory_4s, bass_file_name),
+        other_4s_file_name: os.path.join(directory_4s, other_file_name),
+    }
+
+    zip_file_name = music_name + '.zip'
+    definitive_zip_file_name = os.path.join(output_directory, user_id, zip_file_name)
+
+    with zipfile.ZipFile(definitive_zip_file_name, 'w') as zipf:
+        for source_file, archive_path in files_to_zip.items():
+            zipf.write(source_file, arcname=archive_path)
+
+    print(f'{definitive_zip_file_name} created successfully.')     
+
+    shutil.rmtree(base_directory)
+
+    return definitive_zip_file_name
 
 def music_data_standard(file_path):
     features, features_frames = MusicExtractor(lowlevelStats=['mean', 'stdev'],
@@ -128,6 +236,30 @@ def post_music_data(userId):
             data['predictions'] = predictions_data
 
             return jsonify(data)
+        else:
+            return jsonify({'error': 'No file selected'})
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+@app.route('/spleeter/<userId>', methods=['POST'])
+def post_spleeter(userId):
+    try:
+        uploaded_file = request.files['file']
+
+        if uploaded_file.filename != '':
+            # Save the uploaded file to a location
+            encoded_file_name = uploaded_file.filename
+            upload_directory = "/upload/" + userId
+
+            if not os.path.exists(upload_directory):
+                os.mkdir(upload_directory)
+
+            file_path = os.path.join(upload_directory, encoded_file_name)
+            uploaded_file.save(file_path)
+
+            attachment_file_path = predict_spleeter(userId, file_path, encoded_file_name)
+            return send_file(attachment_file_path, as_attachment=True)
         else:
             return jsonify({'error': 'No file selected'})
 
