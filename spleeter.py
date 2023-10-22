@@ -32,7 +32,7 @@ def init_spleeter_pool_input(file_name):
     # The input needs to have 4 dimensions so that it is interpreted as an Essentia tensor.
     pool.set("waveform", audio[..., np.newaxis, np.newaxis])
 
-    return pool
+    return pool, sr
 
 def spleet_audio_2s(file_name):
     model = TensorflowPredict(
@@ -41,7 +41,9 @@ def spleet_audio_2s(file_name):
         outputs=["waveform_vocals", "waveform_accompaniment"]
     )
 
-    return model(init_spleeter_pool_input(file_name))
+    pool, sr = init_spleeter_pool_input(file_name)
+
+    return model(pool), sr
 
 def spleet_audio_4s(file_name):
     model = TensorflowPredict(
@@ -50,11 +52,13 @@ def spleet_audio_4s(file_name):
         outputs=["waveform_vocals", "waveform_drums", "waveform_bass", "waveform_other"]
     )
 
-    return model(init_spleeter_pool_input(file_name))
+    pool, sr = init_spleeter_pool_input(file_name)
+
+    return model(pool), sr
 
 def predict_spleeter(user_id, file_path, file_name):
-    out_pool_2s = spleet_audio_2s(file_path)
-    out_pool_4s = spleet_audio_4s(file_path)
+    out_pool_2s, sr2 = spleet_audio_2s(file_path)
+    out_pool_4s, sr4 = spleet_audio_4s(file_path)
 
     vocals_2s = out_pool_2s["waveform_vocals"].squeeze()
     accompaniment_2s = out_pool_2s["waveform_accompaniment"].squeeze()
@@ -80,6 +84,9 @@ def predict_spleeter(user_id, file_path, file_name):
     drums_4s_file_name = os.path.join(base_4s_directory, drums_file_name)
     bass_4s_file_name = os.path.join(base_4s_directory, bass_file_name)
     other_4s_file_name = os.path.join(base_4s_directory, other_file_name)
+
+    print(sr2)
+    print(sr4)
 
     AudioWriter(filename=vocals_2s_file_name)(vocals_2s)
     AudioWriter(filename=accompaniment_2s_file_name)(accompaniment_2s)
