@@ -1,6 +1,7 @@
 from flask import Flask, request, json, jsonify, send_file
 from essentia.standard import MusicExtractor, YamlOutput, AudioLoader, MonoLoader, TensorflowPredictEffnetDiscogs, TensorflowPredictVGGish, TensorflowPredict2D, TensorflowPredict, AudioWriter
 from essentia import Pool
+from numba import njit, cuda
 import numpy as np
 import tempfile
 import os
@@ -239,6 +240,7 @@ def post_music_data(userId):
             data['standard'] = standard_data
             data['predictions'] = predictions_data
 
+            os.remove(file_path)
             return jsonify(data)
         else:
             return jsonify({'error': 'No file selected'})
@@ -263,6 +265,8 @@ def post_spleeter(userId):
             uploaded_file.save(file_path)
 
             attachment_file_path = predict_spleeter(userId, file_path, encoded_file_name)
+
+            os.remove(file_path)
             return send_file(attachment_file_path, as_attachment=True)
         else:
             return jsonify({'error': 'No file selected'})
