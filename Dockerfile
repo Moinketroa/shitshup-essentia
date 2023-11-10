@@ -18,7 +18,6 @@ RUN pip3 install --ignore-installed --no-cache-dir flask
 
 RUN pip3 install --no-cache-dir numba
 
-RUN pip3 install --no-cache-dir essentia
 RUN pip3 install --no-cache-dir essentia-tensorflow
 
 RUN mkdir temp

@@ -26,13 +26,13 @@ def create_dir(dir_name):
         os.makedirs(dir_name)
 
 def init_spleeter_pool_input(file_name):
-    audio, sr, _, _, _, _ = AudioLoader(filename=file_name)()
+    audio, sample_rate, _, _, _, _ = AudioLoader(filename=file_name)()
 
     pool = Pool()
     # The input needs to have 4 dimensions so that it is interpreted as an Essentia tensor.
     pool.set("waveform", audio[..., np.newaxis, np.newaxis])
 
-    return pool, sr
+    return pool, sample_rate
 
 def spleet_audio_2s(file_name):
     model = TensorflowPredict(
@@ -41,9 +41,9 @@ def spleet_audio_2s(file_name):
         outputs=["waveform_vocals", "waveform_accompaniment"]
     )
 
-    pool, sr = init_spleeter_pool_input(file_name)
+    pool, sample_rate = init_spleeter_pool_input(file_name)
 
-    return model(pool), sr
+    return model(pool), sample_rate
 
 def spleet_audio_4s(file_name):
     model = TensorflowPredict(
@@ -52,13 +52,13 @@ def spleet_audio_4s(file_name):
         outputs=["waveform_vocals", "waveform_drums", "waveform_bass", "waveform_other"]
     )
 
-    pool, sr = init_spleeter_pool_input(file_name)
+    pool, sample_rate = init_spleeter_pool_input(file_name)
 
-    return model(pool), sr
+    return model(pool), sample_rate
 
 def predict_spleeter(user_id, file_path, file_name):
-    out_pool_2s, sr2 = spleet_audio_2s(file_path)
-    out_pool_4s, sr4 = spleet_audio_4s(file_path)
+    out_pool_2s, sample_rate_2s = spleet_audio_2s(file_path)
+    out_pool_4s, sample_rate_4s = spleet_audio_4s(file_path)
 
     vocals_2s = out_pool_2s["waveform_vocals"].squeeze()
     accompaniment_2s = out_pool_2s["waveform_accompaniment"].squeeze()
@@ -85,16 +85,13 @@ def predict_spleeter(user_id, file_path, file_name):
     bass_4s_file_name = os.path.join(base_4s_directory, bass_file_name)
     other_4s_file_name = os.path.join(base_4s_directory, other_file_name)
 
-    print(sr2)
-    print(sr4)
+    AudioWriter(filename=vocals_2s_file_name, sampleRate=sample_rate_2s)(vocals_2s)
+    AudioWriter(filename=accompaniment_2s_file_name, sampleRate=sample_rate_2s)(accompaniment_2s)
 
-    AudioWriter(filename=vocals_2s_file_name)(vocals_2s)
-    AudioWriter(filename=accompaniment_2s_file_name)(accompaniment_2s)
-
-    AudioWriter(filename=vocals_4s_file_name)(vocals_4s)
-    AudioWriter(filename=drums_4s_file_name)(drums_4s)
-    AudioWriter(filename=bass_4s_file_name)(bass_4s)
-    AudioWriter(filename=other_4s_file_name)(other_4s)
+    AudioWriter(filename=vocals_4s_file_name, sampleRate=sample_rate_4s)(vocals_4s)
+    AudioWriter(filename=drums_4s_file_name, sampleRate=sample_rate_4s)(drums_4s)
+    AudioWriter(filename=bass_4s_file_name, sampleRate=sample_rate_4s)(bass_4s)
+    AudioWriter(filename=other_4s_file_name, sampleRate=sample_rate_4s)(other_4s)
 
     files_to_zip = {
         vocals_2s_file_name: os.path.join(directory_2s, vocals_file_name),
